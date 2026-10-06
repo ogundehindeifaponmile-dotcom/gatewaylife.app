@@ -1,4 +1,5 @@
 // src/App.jsx
+import { trackPlayerPresence, updatePlayerLocation, untrackPlayerPresence } from './lib/presenceService';
 import { useState, useEffect } from 'react';
 import { supabase } from './lib/supabase';
 import { useGameStore } from './store/gameStore';
