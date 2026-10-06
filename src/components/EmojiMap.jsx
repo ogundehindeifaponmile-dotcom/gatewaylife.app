@@ -1,65 +1,18 @@
 // src/components/EmojiMap.jsx
-// Inside EmojiMap component, add:
-const [otherPlayers, setOtherPlayers] = useState([]);
-
-useEffect(() => {
-  const handlePresenceUpdate = (e) => {
-    const allPlayers = e.detail || [];
-    // Filter out current player
-    const others = allPlayers.filter(p => p.user_id !== useGameStore.getState().userId);
-    setOtherPlayers(others);
-  };
-
-  window.addEventListener('player-presence-update', handlePresenceUpdate);
-  return () => window.removeEventListener('player-presence-update', handlePresenceUpdate);
-}, []);
 import { useState, useEffect } from 'react';
 import { useGameStore } from '../store/gameStore';
 
-// Map Definitions: Emoji, Label, Type, and Interaction Logic
+// Map Definitions with X/Y coordinates for multiplayer avatar positioning
 const MAP_LOCATIONS = [
-  { 
-    id: 'market', 
-    label: 'Ogun Market', 
-    emoji: '', 
-    type: 'economy',
-    description: 'Buy shares in Babo, OOPL, land & more'
-  },
-  { 
-    id: 'temple', 
-    label: 'IFA Temple', 
-    emoji: '', 
-    type: 'spiritual',
-    description: 'Visit Baba for Aseje cleansing, Soap Shame removal'
-  },
-  { 
-    id: 'police', 
-    label: 'EFCC Station', 
-    emoji: '', 
-    type: 'legal',
-    description: 'Surrender bribes, reduce Heat, avoid jail time'
-  },
-  { 
-    id: 'chicken', 
-    label: 'Chicken & Co', 
-    emoji: '', 
-    type: 'food',
-    description: 'Order food, send meals to friends, gain energy'
-  },
-  { 
-    id: 'bar', 
-    label: 'YRN Bar', 
-    emoji: '', 
-    type: 'social',
-    description: 'Meet NPCs, form crews, gain respect'
-  },
-  { 
-    id: 'home', 
-    label: 'Your Home', 
-    emoji: '', 
-    type: 'personal',
-    description: 'Rest, store items, recover energy & sanity'
-  },
+  { id: 'abeokuta', label: 'Abeokuta', emoji: '🏔️', type: 'social', x: 20, y: 25, description: 'Olumo Rock, Heritage Museum, Eleweran HQ' },
+  { id: 'ijebu-ode', label: 'Ijebu-Ode', emoji: '🏖️', type: 'economy', x: 75, y: 30, description: 'Maiyegun Resort, Awujale Palace, Chief Motors' },
+  { id: 'sagamu', label: 'Sagamu', emoji: '🪩', type: 'social', x: 50, y: 50, description: 'WOSAM Club, OID Tech Hub, Interchange' },
+  { id: 'sango', label: 'Sango-Ota', emoji: '🛣️', type: 'economy', x: 20, y: 75, description: 'Border Area, Oke Aje Market, Odogwu Bar' },
+  { id: 'homeland', label: 'Homeland Haven', emoji: '🏡', type: 'social', x: 80, y: 75, description: 'Rich Estate, VVIP Only, High Security' },
+  { id: 'yrn', label: 'yrnFAMILY', emoji: '👕', type: 'economy', x: 50, y: 20, description: 'Premium Fashion Store, Drip Checks' },
+  { id: 'amala', label: 'Amala Ogun', emoji: '🍲', type: 'food', x: 35, y: 45, description: 'Local Joint, Cheap Energy, Lapo Hangout' },
+  { id: 'bank', label: 'GHB Bank', emoji: '🏦', type: 'economy', x: 65, y: 65, description: 'Gateway Heritage Bank, Cash & Loans' },
+  { id: 'temple', label: 'IFA Temple', emoji: '🌿', type: 'spiritual', x: 85, y: 50, description: 'Baba, Aseje Cleansing, Soap Shame Removal' },
 ];
 
 export default function EmojiMap() {
@@ -71,13 +24,30 @@ export default function EmojiMap() {
     heat, 
     babaTasks, 
     hasAsejeCurse,
-    hasSoapShame 
+    hasSoapShame,
+    userId
   } = useGameStore();
   
   const [selectedLocation, setSelectedLocation] = useState(null);
   const [traveling, setTraveling] = useState(false);
   const [travelCost, setTravelCost] = useState(0);
   const [energyCost, setEnergyCost] = useState(0);
+  
+  // MULTIPLAYER PRESENCE STATE
+  const [otherPlayers, setOtherPlayers] = useState([]);
+
+  // Listen for real-time player movements
+  useEffect(() => {
+    const handlePresenceUpdate = (e) => {
+      const allPlayers = e.detail || [];
+      // Filter out current player
+      const others = allPlayers.filter(p => p.user_id !== userId);
+      setOtherPlayers(others);
+    };
+
+    window.addEventListener('player-presence-update', handlePresenceUpdate);
+    return () => window.removeEventListener('player-presence-update', handlePresenceUpdate);
+  }, [userId]);
 
   // Calculate travel costs based on distance and location type
   const calculateTravelCosts = (location) => {
@@ -95,7 +65,6 @@ export default function EmojiMap() {
                       location.type === 'food' ? 6 : 
                       location.type === 'social' ? 5 : 3;
                       
-    // Distance multiplier (simplified as visited status)
     const distanceMult = visitedLocations.includes(location.id) ? 1 : 1.5;
     
     return { 
@@ -104,9 +73,8 @@ export default function EmojiMap() {
     };
   };
 
-  // Handle location selection
   const handleLocationClick = (location) => {
-    if (heat > 90) return; // EFCC monitoring blocks travel
+    if (heat > 90) return; 
     
     const costs = calculateTravelCosts(location);
     setSelectedLocation(location);
@@ -114,39 +82,31 @@ export default function EmojiMap() {
     setEnergyCost(costs.energy);
   };
 
-  // Handle travel confirmation
   const confirmTravel = async () => {
     if (!selectedLocation || traveling) return;
     
-    // Check if player can afford travel
     if (money < travelCost) {
       alert('Not enough money to travel!');
       return;
     }
     
     setTraveling(true);
+    await new Promise(resolve => setTimeout(resolve, 1000)); // Faster travel for better UX
     
-    // Simulate travel delay (replace with actual animation later)
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    
-    // Update store state
     travelTo(selectedLocation.id, travelCost, energyCost);
     
-    // Reset state
     setTraveling(false);
     setSelectedLocation(null);
     setTravelCost(0);
     setEnergyCost(0);
   };
 
-  // Cancel travel
   const cancelTravel = () => {
     setSelectedLocation(null);
     setTravelCost(0);
     setEnergyCost(0);
   };
 
-  // Render selected location details
   const renderLocationDetails = () => {
     if (!selectedLocation) return null;
 
@@ -157,13 +117,11 @@ export default function EmojiMap() {
     return (
       <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
         <div className="bg-gray-900 rounded-2xl w-full max-w-[350px] overflow-hidden border border-white/10">
-          {/* Header */}
           <div className="p-4 border-b border-white/10 flex justify-between items-center">
             <span className="font-bold text-lg">{selectedLocation.emoji} {selectedLocation.label}</span>
             <button onClick={cancelTravel} className="text-white/50 hover:text-white">✕</button>
           </div>
           
-          {/* Content */}
           <div className="p-4">
             <p className="text-white/70 text-sm mb-4">{selectedLocation.description}</p>
             
@@ -174,11 +132,10 @@ export default function EmojiMap() {
               </div>
             ) : (
               <>
-                {/* Travel Costs */}
                 <div className="bg-yellow-500/20 border border-yellow-500/40 rounded-lg p-3 mb-4">
                   <p className="text-yellow-300 font-bold text-sm mb-2">Travel Costs</p>
                   <div className="flex justify-between text-xs">
-                    <span className="text-white/70"> Money:</span>
+                    <span className="text-white/70">💰 Money:</span>
                     <span className={`font-bold ${canAfford ? 'text-green-300' : 'text-red-300'}`}>
                       ₦{travelCost.toLocaleString()}
                     </span>
@@ -189,7 +146,6 @@ export default function EmojiMap() {
                   </div>
                 </div>
                 
-                {/* Spiritual Warnings */}
                 {(hasAsejeCurse || hasSoapShame) && selectedLocation.type !== 'spiritual' && (
                   <div className="bg-purple-500/20 border border-purple-500/40 rounded-lg p-3 mb-4 animate-pulse">
                     <p className="text-purple-300 font-bold text-xs mb-1">⚠️ SPIRITUAL WARNING</p>
@@ -199,7 +155,6 @@ export default function EmojiMap() {
                   </div>
                 )}
                 
-                {/* Confirm Button */}
                 <button
                   onClick={confirmTravel}
                   disabled={!canTravel || traveling}
@@ -221,15 +176,15 @@ export default function EmojiMap() {
 
   return (
     <div className="relative h-[600px] w-full max-w-[350px] mx-auto bg-black rounded-[3rem] border-8 border-gray-800 shadow-2xl overflow-hidden">
-      {/* Notch / Dynamic Island */}
+      {/* Notch */}
       <div className="absolute top-0 left-1/2 -translate-x-1/2 w-32 h-7 bg-black rounded-b-2xl z-20" />
 
       {/* Status Bar */}
       <div className="pt-8 px-6 pb-2 flex justify-between items-center text-xs text-white/70 bg-black/50 backdrop-blur-sm z-10 relative">
         <span>9:41 AM</span>
         <div className="flex gap-1">
-          <span></span>
-          <span></span>
+          <span>📶</span>
+          <span>🔋</span>
         </div>
       </div>
 
@@ -241,9 +196,33 @@ export default function EmojiMap() {
       )}
 
       {/* Main Content Area */}
-      <div className="h-full pt-2 px-4 pb-6 overflow-y-auto no-scrollbar">
+      <div className="h-full pt-2 px-4 pb-6 overflow-y-auto no-scrollbar relative">
+        
+        {/* MULTIPLAYER AVATARS OVERLAY */}
+        {otherPlayers.map((player) => {
+          const loc = MAP_LOCATIONS.find(l => l.id === player.location);
+          if (!loc) return null;
+          
+          return (
+            <div 
+              key={player.user_id}
+              className="absolute flex flex-col items-center z-10 animate-bounce-slow pointer-events-none"
+              style={{ 
+                left: `${loc.x}%`, 
+                top: `${loc.y}%`,
+                transform: 'translate(-50%, -50%)'
+              }}
+            >
+              <div className="text-2xl filter drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]">👤</div>
+              <span className="text-[9px] bg-black/70 px-1.5 py-0.5 rounded text-white whitespace-nowrap mt-0.5 border border-white/20">
+                {player.user_id?.slice(0, 6)}...
+              </span>
+            </div>
+          );
+        })}
+
         {/* Current Location Indicator */}
-        <div className="mb-4 bg-blue-900/30 border border-blue-500/30 rounded-xl p-3">
+        <div className="mb-4 bg-blue-900/30 border border-blue-500/30 rounded-xl p-3 relative z-20">
           <span className="text-blue-300 text-xs font-bold">📍 CURRENT LOCATION</span>
           <p className="text-blue-400/70 text-[10px] mt-1">
             {MAP_LOCATIONS.find(loc => loc.id === currentLocation)?.label || 'Unknown'}
@@ -251,7 +230,7 @@ export default function EmojiMap() {
         </div>
 
         {/* Visited Locations Tracker */}
-        <div className="mb-4 bg-green-900/20 border border-green-500/20 rounded-xl p-3">
+        <div className="mb-4 bg-green-900/20 border border-green-500/20 rounded-xl p-3 relative z-20">
           <span className="text-green-300 text-xs font-bold">✅ VISITED LOCATIONS</span>
           <div className="flex flex-wrap gap-1 mt-1">
             {visitedLocations.map(locId => {
@@ -269,7 +248,7 @@ export default function EmojiMap() {
         </div>
 
         {/* Location Grid */}
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-3 gap-4 relative z-20">
           {MAP_LOCATIONS.map((location) => {
             const isCurrent = location.id === currentLocation;
             const isVisited = visitedLocations.includes(location.id);
@@ -293,7 +272,7 @@ export default function EmojiMap() {
                 } group-hover:brightness-110`}>
                   {location.emoji}
                 </div>
-                <span className="text-[10px] text-white/80 font-medium">{location.label}</span>
+                <span className="text-[10px] text-white/80 font-medium text-center leading-tight">{location.label}</span>
                 {isCurrent && (
                   <span className="text-[8px] text-green-400 font-bold">HERE</span>
                 )}
@@ -304,7 +283,7 @@ export default function EmojiMap() {
       </div>
 
       {/* Home Indicator */}
-      <div className="absolute bottom-2 left-1 spx-1/2 -translate-x-1/2 w-32 h-1 bg-white/30 rounded-full" />
+      <div className="absolute bottom-2 left-1/2 -translate-x-1/2 w-32 h-1 bg-white/30 rounded-full z-30" />
 
       {/* Travel Modal */}
       {renderLocationDetails()}
