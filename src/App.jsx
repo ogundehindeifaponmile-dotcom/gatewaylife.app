@@ -1,3 +1,6 @@
+import { useState, useEffect } from 'react';
+import { supabase } from './lib/supabase';
+import AuthModal from './components/AuthModal';
 // src/App.jsx
 import { useState } from 'react';
 import { useGameStore } from './store/gameStore';
