@@ -7,15 +7,16 @@ import PhoneInterface from './components/PhoneInterface';
 import StatBar from './components/StatBar';
 import TransportSelector from './components/TransportSelector';
 import AuthModal from './components/AuthModal';
+import CharacterCreation from './components/CharacterCreation';
 
-// Ogun State Locations Data (Kept for top bar reference)
+// Ogun State Locations Data
 const LOCATIONS = [
   { id: 'abeokuta', name: 'Abeokuta', icon: '🏔️', subtext: 'Olumo Rock' },
   { id: 'ijebu-ode', name: 'Ijebu-Ode', icon: '🏖️', subtext: 'Maiyegun Resort' },
   { id: 'sagamu', name: 'Sagamu', icon: '🪩', subtext: 'WOSAM Club' },
   { id: 'sango', name: 'Sango-Ota', icon: '🛣️', subtext: 'Border Area' },
   { id: 'homeland', name: 'Homeland Haven', icon: '🏡', subtext: 'Rich Estate' },
-  { id: 'yrn', name: 'yrnFAMILY Store', icon: '👕', subtext: 'Premium Fashion' },
+  { id: 'yrn', name: 'yrnFAMILY Store', icon: '', subtext: 'Premium Fashion' },
   { id: 'amala', name: 'Amala Ogun', icon: '🍲', subtext: 'Local Joint' },
   { id: 'bank', name: 'Gateway Heritage Bank', icon: '🏦', subtext: 'Cash & Loans' },
   { id: 'oid', name: 'Ogun Innovation District', icon: '💡', subtext: 'Tech Hub' },
@@ -24,11 +25,12 @@ const LOCATIONS = [
 function App() {
   const [session, setSession] = useState(null);
   const [showAuth, setShowAuth] = useState(true);
+  const [needsCharacterCreation, setNeedsCharacterCreation] = useState(false);
   
   // Game state from Zustand
   const { 
-    money, location, setLocation, energy, respect, sanity, heat,
-    updateStats, travelTo 
+    money, currentLocation, setLocation, energy, respect, sanity, heat,
+    travelTo 
   } = useGameStore();
   
   const [showPhone, setShowPhone] = useState(false);
@@ -39,23 +41,22 @@ function App() {
       setSession(session);
       setShowAuth(!session);
       
-      // If logged in, sync local store with DB profile
       if (session) {
-        loadPlayerProfile(session.user.id);
+        checkPlayerProfile(session.user.id);
       }
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
       setShowAuth(!session);
-      if (session) loadPlayerProfile(session.user.id);
+      if (session) checkPlayerProfile(session.user.id);
     });
 
     return () => subscription.unsubscribe();
   }, []);
 
-  // Load player stats from Supabase on login
-  const loadPlayerProfile = async (userId) => {
+  // Check if player needs character creation or load existing profile
+  const checkPlayerProfile = async (userId) => {
     try {
       const { data, error } = await supabase
         .from('players')
@@ -63,53 +64,69 @@ function App() {
         .eq('id', userId)
         .single();
         
-      if (!error && data) {
-        // Sync DB state to Zustand store
-        useGameStore.setState({
-          userId: data.id,
-          money: data.money,
-          respect: data.respect,
-          energy: data.energy,
-          sanity: data.sanity,
-          heat: data.heat,
-          currentLocation: data.current_location,
-          homeLocation: data.home_location,
-          visitedLocations: data.visited_locations || [],
-          inventory: data.inventory || [],
-          clothing: data.clothing || [],
-          vehicles: data.vehicles || [],
-          friends: data.friends || [],
-          babaTasks: data.baba_tasks || [],
-          hasAsejeCurse: data.has_aseje_curse,
-          hasSoapShame: data.has_soap_shame,
-        });
+      if (error || !data) {
+        // New user - show character creation
+        setNeedsCharacterCreation(true);
+        return;
       }
+      
+      // Returning player - sync to store
+      useGameStore.setState({
+        userId: data.id,
+        gender: data.gender,
+        root: data.root,
+        classType: data.class_type,
+        isIJGB: data.is_ijgb,
+        money: data.money,
+        respect: data.respect,
+        energy: data.energy,
+        sanity: data.sanity,
+        heat: data.heat,
+        currentLocation: data.current_location,
+        homeLocation: data.home_location,
+        visitedLocations: data.visited_locations || [],
+        inventory: data.inventory || [],
+        clothing: data.clothing || [],
+        vehicles: data.vehicles || [],
+        friends: data.friends || [],
+        babaTasks: data.baba_tasks || [],
+        hasAsejeCurse: data.has_aseje_curse,
+        hasSoapShame: data.has_soap_shame,
+      });
+      
+      setNeedsCharacterCreation(false);
     } catch (err) {
-      console.error('Failed to load profile:', err);
+      console.error('Failed to check profile:', err);
+      setNeedsCharacterCreation(true);
     }
   };
 
-  // Handle travel with actual cost deduction
+  // Handle travel with cost deduction
   const handleLocationClick = (locId) => {
     if (heat > 90) {
       alert(" EFCC LOCKDOWN: Cannot travel while under surveillance!");
       return;
     }
     
-    const travelCost = 500; // Simplified for MVP
+    const travelCost = 500;
     if (money >= travelCost) {
-      travelTo(locId, travelCost, 10); // Deduct 500 + 10 energy
+      travelTo(locId, travelCost, 10);
       setLocation(locId);
     } else {
       alert("You don't have enough money to travel! Hustle first.");
     }
   };
 
-  // 🚫 BLOCK GAME UNTIL AUTHENTICATED
+  // 🚫 RENDER FLOW: Auth → Character Creation → Game
   if (showAuth) {
     return <AuthModal onClose={() => setShowAuth(false)} />;
   }
 
+  if (needsCharacterCreation) {
+    return <CharacterCreation onComplete={() => setNeedsCharacterCreation(false)} />;
+  }
+
+  // ✅ GAME SHELL
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-900 via-yellow-800 to-blue-900 text-white font-sans overflow-hidden relative">
       {/* TOP STATUS BAR */}
@@ -118,11 +135,11 @@ function App() {
           <span className="text-2xl font-bold text-yellow-400">₦{money.toLocaleString()}</span>
         </div>
         <div className="text-sm bg-white/10 px-3 py-1 rounded-full">
-          📍 Current: {LOCATIONS.find(l => l.id === location)?.name || 'Unknown'}
+          📍 Current: {LOCATIONS.find(l => l.id === currentLocation)?.name || 'Unknown'}
         </div>
         <button 
           onClick={() => supabase.auth.signOut()}
-          className="text-xs text-red-400 hover:text-red-300"
+          className="text-xs text-red-400 hover:text-red-300 transition"
         >
           Sign Out
         </button>
@@ -150,7 +167,7 @@ function App() {
         <div className="flex-1 relative bg-black/30 rounded-2xl border border-white/10 overflow-hidden shadow-2xl">
           <EmojiMap 
             locations={LOCATIONS} 
-            currentLocation={location} 
+            currentLocation={currentLocation} 
             onLocationClick={handleLocationClick} 
           />
         </div>
