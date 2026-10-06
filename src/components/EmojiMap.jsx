@@ -1,4 +1,18 @@
 // src/components/EmojiMap.jsx
+// Inside EmojiMap component, add:
+const [otherPlayers, setOtherPlayers] = useState([]);
+
+useEffect(() => {
+  const handlePresenceUpdate = (e) => {
+    const allPlayers = e.detail || [];
+    // Filter out current player
+    const others = allPlayers.filter(p => p.user_id !== useGameStore.getState().userId);
+    setOtherPlayers(others);
+  };
+
+  window.addEventListener('player-presence-update', handlePresenceUpdate);
+  return () => window.removeEventListener('player-presence-update', handlePresenceUpdate);
+}, []);
 import { useState, useEffect } from 'react';
 import { useGameStore } from '../store/gameStore';
 
