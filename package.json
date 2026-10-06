@@ -1,0 +1,11 @@
+{
+  "dependencies": {
+    "@supabase/supabase-js": "^2.117.2",
+    "autoprefixer": "^10.6.1",
+    "phaser": "^4.2.1",
+    "postcss": "^8.5.29",
+    "socket.io-client": "^4.8.4",
+    "tailwindcss": "^4.3.3",
+    "zustand": "^5.0.15"
+  }
+}
