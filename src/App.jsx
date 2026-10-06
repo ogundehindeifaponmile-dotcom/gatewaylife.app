@@ -1,40 +1,114 @@
+// src/App.jsx
 import { useState, useEffect } from 'react';
 import { supabase } from './lib/supabase';
-import AuthModal from './components/AuthModal';
-// src/App.jsx
-import { useState } from 'react';
 import { useGameStore } from './store/gameStore';
 import EmojiMap from './components/EmojiMap';
 import PhoneInterface from './components/PhoneInterface';
 import StatBar from './components/StatBar';
 import TransportSelector from './components/TransportSelector';
+import AuthModal from './components/AuthModal';
 
-// Ogun State Locations Data
+// Ogun State Locations Data (Kept for top bar reference)
 const LOCATIONS = [
-  { id: 'abeokuta', name: 'Abeokuta', icon: '🏔️', subtext: 'Olumo Rock', x: 30, y: 25 },
-  { id: 'ijebu-ode', name: 'Ijebu-Ode', icon: '️', subtext: 'Maiyegun Resort', x: 45, y: 65 },
-  { id: 'sagamu', name: 'Sagamu', icon: '🪩', subtext: 'WOSAM Club', x: 65, y: 45 },
-  { id: 'sango', name: 'Sango-Ota', icon: '️', subtext: 'Border Area', x: 75, y: 75 },
-  { id: 'homeland', name: 'Homeland Haven', icon: '', subtext: 'Rich Estate', x: 85, y: 30 },
-  { id: 'yrn', name: 'yrnFAMILY Store', icon: '👕', subtext: 'Premium Fashion', x: 25, y: 50 },
-  { id: 'amala', name: 'Amala Ogun', icon: '🍲', subtext: 'Local Joint', x: 35, y: 70 },
-  { id: 'bank', name: 'Gateway Heritage Bank', icon: '', subtext: 'Cash & Loans', x: 50, y: 35 },
-  { id: 'oid', name: 'Ogun Innovation District', icon: '💡', subtext: 'Tech Hub', x: 60, y: 60 },
+  { id: 'abeokuta', name: 'Abeokuta', icon: '🏔️', subtext: 'Olumo Rock' },
+  { id: 'ijebu-ode', name: 'Ijebu-Ode', icon: '🏖️', subtext: 'Maiyegun Resort' },
+  { id: 'sagamu', name: 'Sagamu', icon: '🪩', subtext: 'WOSAM Club' },
+  { id: 'sango', name: 'Sango-Ota', icon: '🛣️', subtext: 'Border Area' },
+  { id: 'homeland', name: 'Homeland Haven', icon: '🏡', subtext: 'Rich Estate' },
+  { id: 'yrn', name: 'yrnFAMILY Store', icon: '👕', subtext: 'Premium Fashion' },
+  { id: 'amala', name: 'Amala Ogun', icon: '🍲', subtext: 'Local Joint' },
+  { id: 'bank', name: 'Gateway Heritage Bank', icon: '🏦', subtext: 'Cash & Loans' },
+  { id: 'oid', name: 'Ogun Innovation District', icon: '💡', subtext: 'Tech Hub' },
 ];
 
 function App() {
-  const { money, location, setLocation, energy, respect, sanity } = useGameStore();
+  const [session, setSession] = useState(null);
+  const [showAuth, setShowAuth] = useState(true);
+  
+  // Game state from Zustand
+  const { 
+    money, location, setLocation, energy, respect, sanity, heat,
+    updateStats, travelTo 
+  } = useGameStore();
+  
   const [showPhone, setShowPhone] = useState(false);
 
+  //  AUTH CHECK ON LOAD
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      setShowAuth(!session);
+      
+      // If logged in, sync local store with DB profile
+      if (session) {
+        loadPlayerProfile(session.user.id);
+      }
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+      setShowAuth(!session);
+      if (session) loadPlayerProfile(session.user.id);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  // Load player stats from Supabase on login
+  const loadPlayerProfile = async (userId) => {
+    try {
+      const { data, error } = await supabase
+        .from('players')
+        .select('*')
+        .eq('id', userId)
+        .single();
+        
+      if (!error && data) {
+        // Sync DB state to Zustand store
+        useGameStore.setState({
+          userId: data.id,
+          money: data.money,
+          respect: data.respect,
+          energy: data.energy,
+          sanity: data.sanity,
+          heat: data.heat,
+          currentLocation: data.current_location,
+          homeLocation: data.home_location,
+          visitedLocations: data.visited_locations || [],
+          inventory: data.inventory || [],
+          clothing: data.clothing || [],
+          vehicles: data.vehicles || [],
+          friends: data.friends || [],
+          babaTasks: data.baba_tasks || [],
+          hasAsejeCurse: data.has_aseje_curse,
+          hasSoapShame: data.has_soap_shame,
+        });
+      }
+    } catch (err) {
+      console.error('Failed to load profile:', err);
+    }
+  };
+
+  // Handle travel with actual cost deduction
   const handleLocationClick = (locId) => {
-    // Simulate travel cost deduction (placeholder logic)
-    if (money >= 500) {
+    if (heat > 90) {
+      alert(" EFCC LOCKDOWN: Cannot travel while under surveillance!");
+      return;
+    }
+    
+    const travelCost = 500; // Simplified for MVP
+    if (money >= travelCost) {
+      travelTo(locId, travelCost, 10); // Deduct 500 + 10 energy
       setLocation(locId);
-      // In full version: trigger transport selection modal here
     } else {
       alert("You don't have enough money to travel! Hustle first.");
     }
   };
+
+  // 🚫 BLOCK GAME UNTIL AUTHENTICATED
+  if (showAuth) {
+    return <AuthModal onClose={() => setShowAuth(false)} />;
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-900 via-yellow-800 to-blue-900 text-white font-sans overflow-hidden relative">
@@ -46,27 +120,24 @@ function App() {
         <div className="text-sm bg-white/10 px-3 py-1 rounded-full">
           📍 Current: {LOCATIONS.find(l => l.id === location)?.name || 'Unknown'}
         </div>
+        <button 
+          onClick={() => supabase.auth.signOut()}
+          className="text-xs text-red-400 hover:text-red-300"
+        >
+          Sign Out
+        </button>
       </div>
 
       {/* MAIN CONTENT AREA */}
       <div className="pt-16 pb-24 px-4 h-screen flex flex-col md:flex-row gap-4">
         
-        {/* LEFT: PLAYER STATS (Hidden on mobile, visible on desktop) */}
-        <div className="hidden md:block w-64 shrink-0">
-          <StatBar 
-            label="Money" value={money} max={10000000} color="bg-yellow-400" 
-          />
-          <StatBar 
-            label="Respect" value={respect} max={100} color="bg-red-500" 
-          />
-          <StatBar 
-            label="Energy" value={energy} max={100} color="bg-teal-400" 
-          />
-          <StatBar 
-            label="Sanity" value={sanity} max={100} color="bg-purple-500" 
-          />
+        {/* LEFT: PLAYER STATS (Desktop Only) */}
+        <div className="hidden md:block w-64 shrink-0 space-y-3">
+          <StatBar label="Money" value={money} max={10000000} color="bg-yellow-400" />
+          <StatBar label="Respect" value={respect} max={100} color="bg-red-500" />
+          <StatBar label="Energy" value={energy} max={100} color="bg-teal-400" />
+          <StatBar label="Sanity" value={sanity} max={100} color="bg-purple-500" />
           
-          {/* PHONE TOGGLE BUTTON (Desktop Only) */}
           <button 
             onClick={() => setShowPhone(!showPhone)}
             className="mt-6 w-full bg-white/10 hover:bg-white/20 border border-white/20 rounded-xl p-4 transition-all active:scale-95"
@@ -84,7 +155,7 @@ function App() {
           />
         </div>
 
-        {/* RIGHT: PHONE INTERFACE (Conditional Render) */}
+        {/* RIGHT: PHONE INTERFACE */}
         {showPhone && (
           <div className="w-full md:w-80 shrink-0 animate-slide-in-right">
             <PhoneInterface />
@@ -92,12 +163,12 @@ function App() {
         )}
       </div>
 
-      {/* BOTTOM TRANSPORT SELECTOR (Mobile Sticky / Desktop Fixed Bottom) */}
+      {/* BOTTOM TRANSPORT SELECTOR */}
       <div className="fixed bottom-0 left-0 right-0 z-40 bg-black/90 backdrop-blur-lg border-t border-white/10 p-3">
         <TransportSelector />
       </div>
 
-      {/* MOBILE PHONE TOGGLE (Floating Button) */}
+      {/* MOBILE PHONE TOGGLE */}
       <button 
         onClick={() => setShowPhone(!showPhone)}
         className="md:hidden fixed bottom-24 right-4 z-50 bg-yellow-500 text-black w-14 h-14 rounded-full shadow-lg flex items-center justify-center text-2xl active:scale-90 transition-transform"
